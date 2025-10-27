@@ -26,6 +26,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check file size (limit to 10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (audioFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File size too large. Maximum size is 10MB" },
+        { status: 400 }
+      );
+    }
+
     const buffer = Buffer.from(await audioFile.arrayBuffer());
 
     console.log(
