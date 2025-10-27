@@ -1,10 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { AudioProcessor } from "@/lib/audio-processor";
 
 // Ensure this route runs in the Node.js runtime (not the Edge runtime).
 // The handler uses Node Buffer and other Node-only APIs which are not
 // available in the Edge (Web) runtime. For production deployments that
 // default to the Edge runtime, explicitly set the runtime to 'nodejs'.
 export const runtime = "nodejs";
+export const maxDuration = 300; // Set max duration to 5 minutes
+
+// Helper function to convert Blob to base64
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  return `data:${blob.type};base64,${Buffer.from(buffer).toString("base64")}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,20 +32,24 @@ export async function POST(request: NextRequest) {
       `[v0] Processing file: ${audioFile.name}, size: ${buffer.length} bytes`
     );
 
-    // Parse WAV file and separate channels
-    const { leftChannel, rightChannel } = await separateAudioChannels(buffer);
+    // Create a new audio processor instance
+    const audioProcessor = new AudioProcessor();
 
-    // Return base64 encoded data URLs
-    const leftDataUrl = `data:audio/wav;base64,${leftChannel.toString(
-      "base64"
-    )}`;
-    const rightDataUrl = `data:audio/wav;base64,${rightChannel.toString(
-      "base64"
-    )}`;
+    // Create a File object from the buffer
+    const file = new File([buffer], audioFile.name, { type: audioFile.type });
+
+    // Process the audio file
+    const { leftChannel, rightChannel } = await audioProcessor.separateChannels(
+      file
+    );
+
+    // Convert blobs to base64
+    const leftBase64 = await blobToBase64(leftChannel);
+    const rightBase64 = await blobToBase64(rightChannel);
 
     return NextResponse.json({
-      leftChannel: leftDataUrl,
-      rightChannel: rightDataUrl,
+      leftChannel: leftBase64,
+      rightChannel: rightBase64,
     });
   } catch (error) {
     console.error("Error processing audio:", error);
