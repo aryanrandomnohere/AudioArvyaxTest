@@ -1,17 +1,51 @@
 export class ClientAudioProcessor {
-  private audioContext: AudioContext;
+  private audioContext: AudioContext | null = null;
 
   constructor() {
-    this.audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
+    // Defer AudioContext creation until needed
+    this.initializeAudioContext();
+  }
+
+  private initializeAudioContext() {
+    if (typeof window !== "undefined" && !this.audioContext) {
+      try {
+        const AudioContextClass =
+          window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          this.audioContext = new AudioContextClass();
+        }
+      } catch (error) {
+        console.error("Failed to initialize AudioContext:", error);
+      }
+    }
   }
 
   async separateChannels(
     audioFile: File
   ): Promise<{ leftChannel: Blob; rightChannel: Blob }> {
     try {
+      // Initialize audio context if needed
+      this.initializeAudioContext();
+
+      if (!this.audioContext) {
+        throw new Error(
+          "Could not initialize audio context. Your browser might not support the Web Audio API."
+        );
+      }
+
+      // Ensure the audio context is running (needed for Chrome)
+      if (this.audioContext.state === "suspended") {
+        await this.audioContext.resume();
+      }
+
       // Read the file
       const arrayBuffer = await audioFile.arrayBuffer();
+
+      // Validate file size
+      const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+      if (arrayBuffer.byteLength > MAX_SIZE) {
+        throw new Error("File is too large. Maximum size is 100MB.");
+      }
 
       // Decode the audio
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);

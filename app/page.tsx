@@ -40,10 +40,23 @@ export default function AudioSeparator() {
   );
 
   useEffect(() => {
-    // Initialize the audio processor
-    if (!audioProcessorRef.current) {
-      audioProcessorRef.current = new ClientAudioProcessor();
+    // Check for browser compatibility
+    if (typeof window !== "undefined") {
+      const AudioContext =
+        window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) {
+        setError(
+          "Your browser does not support the Web Audio API. Please try using a modern browser like Chrome, Firefox, or Safari."
+        );
+        return;
+      }
+
+      // Initialize the audio processor
+      if (!audioProcessorRef.current) {
+        audioProcessorRef.current = new ClientAudioProcessor();
+      }
     }
+
     return () => {
       // Cleanup on unmount
       downloadManagerRef.current.cleanup();
