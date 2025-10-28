@@ -7,10 +7,17 @@ export class AudioProcessor {
     if (typeof window !== "undefined") {
       this.audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
-    } else {
-      // Server-side offline context
-      const { OfflineAudioContext } = require("web-audio-engine");
-      this.audioContext = new OfflineAudioContext(2, 44100 * 10, 44100);
+    }
+  }
+
+  private async createServerContext() {
+    try {
+      // Only import on server side
+      const { OfflineAudioContext } = await import('web-audio-engine');
+      return new OfflineAudioContext(2, 44100 * 10, 44100);
+    } catch (error) {
+      console.error('Failed to create server audio context:', error);
+      throw new Error('Failed to initialize audio processing');
     }
   }
 
@@ -18,26 +25,29 @@ export class AudioProcessor {
     leftChannel: Blob;
     rightChannel: Blob;
   }> {
-    if (!this.audioContext) {
-      throw new Error("AudioContext not available");
-    }
+    try {
+      console.log("[v0] Starting audio separation process");
 
-    console.log("[v0] Starting audio separation process");
+      // Read the audio file as array buffer
+      const arrayBuffer = await audioFile.arrayBuffer();
+      console.log("[v0] Audio file loaded, size:", arrayBuffer.byteLength);
 
-    // Read the audio file as array buffer
-    const arrayBuffer = await audioFile.arrayBuffer();
-    console.log("[v0] Audio file loaded, size:", arrayBuffer.byteLength);
+      // Create or get audio context
+      const ctx = this.audioContext || await this.createServerContext();
+      if (!ctx) {
+        throw new Error("Failed to initialize audio context");
+      }
 
-    // Decode the audio data
-    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-    console.log(
-      "[v0] Audio decoded - Channels:",
-      audioBuffer.numberOfChannels,
-      "Sample Rate:",
-      audioBuffer.sampleRate,
-      "Duration:",
-      audioBuffer.duration
-    );
+      // Decode the audio data
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      console.log(
+        "[v0] Audio decoded - Channels:",
+        audioBuffer.numberOfChannels,
+        "Sample Rate:",
+        audioBuffer.sampleRate,
+        "Duration:",
+        audioBuffer.duration
+      );
 
     // Check if the audio is stereo
     if (audioBuffer.numberOfChannels < 2) {

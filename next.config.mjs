@@ -11,6 +11,7 @@ const nextConfig = {
   },
   experimental: {
     serverActions: true,
+    serverComponentsExternalPackages: ['web-audio-engine'],
   },
   webpack: (config) => {
     config.resolve.fallback = {
@@ -18,6 +19,8 @@ const nextConfig = {
       fs: false,
       path: false,
       stream: false,
+      crypto: false,
+      'web-audio-engine': false,
     };
     return config;
   },
