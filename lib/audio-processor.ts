@@ -13,11 +13,11 @@ export class AudioProcessor {
   private async createServerContext() {
     try {
       // Only import on server side
-      const { OfflineAudioContext } = await import('web-audio-engine');
+      const { OfflineAudioContext } = await import("web-audio-engine");
       return new OfflineAudioContext(2, 44100 * 10, 44100);
     } catch (error) {
-      console.error('Failed to create server audio context:', error);
-      throw new Error('Failed to initialize audio processing');
+      console.error("Failed to create server audio context:", error);
+      throw new Error("Failed to initialize audio processing");
     }
   }
 
@@ -33,7 +33,7 @@ export class AudioProcessor {
       console.log("[v0] Audio file loaded, size:", arrayBuffer.byteLength);
 
       // Create or get audio context
-      const ctx = this.audioContext || await this.createServerContext();
+      const ctx = this.audioContext || (await this.createServerContext());
       if (!ctx) {
         throw new Error("Failed to initialize audio context");
       }
@@ -99,7 +99,7 @@ export class AudioProcessor {
         rightChannel: rightBlob,
       };
     } catch (error) {
-      console.error('[v0] Error in separateChannels:', error);
+      console.error("[v0] Error in separateChannels:", error);
       throw error;
     }
   }
