@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify file type
-    if (!audioFile.type.startsWith('audio/')) {
+    if (!audioFile.type.startsWith("audio/")) {
       return NextResponse.json(
         { error: "Invalid file type. Please upload an audio file" },
         { status: 400 }

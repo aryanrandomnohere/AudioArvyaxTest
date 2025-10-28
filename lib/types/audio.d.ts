@@ -5,7 +5,11 @@ export interface AudioProcessingResult {
 
 export interface AudioContext {
   decodeAudioData(buffer: ArrayBuffer): Promise<AudioBuffer>;
-  createBuffer(numberOfChannels: number, length: number, sampleRate: number): AudioBuffer;
+  createBuffer(
+    numberOfChannels: number,
+    length: number,
+    sampleRate: number
+  ): AudioBuffer;
 }
 
 export interface AudioBuffer {
