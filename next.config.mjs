@@ -10,9 +10,11 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverActions: true,
-    serverComponentsExternalPackages: ["web-audio-engine"],
+    serverActions: {
+      allowedOrigins: ['*']
+    }
   },
+  serverExternalPackages: ["web-audio-engine"],
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

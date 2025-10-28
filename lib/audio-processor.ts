@@ -49,55 +49,59 @@ export class AudioProcessor {
         audioBuffer.duration
       );
 
-    // Check if the audio is stereo
-    if (audioBuffer.numberOfChannels < 2) {
-      throw new Error("Audio file must be stereo (2 channels) to separate");
+      // Check if the audio is stereo
+      if (audioBuffer.numberOfChannels < 2) {
+        throw new Error("Audio file must be stereo (2 channels) to separate");
+      }
+
+      // Get the sample rate and length
+      const sampleRate = audioBuffer.sampleRate;
+      const length = audioBuffer.length;
+
+      // Create new audio buffers for left and right channels (mono output)
+      const leftBuffer = ctx.createBuffer(1, length, sampleRate);
+      const rightBuffer = ctx.createBuffer(1, length, sampleRate);
+
+      // Get the channel data
+      const leftChannelData = audioBuffer.getChannelData(0); // Left channel
+      const rightChannelData = audioBuffer.getChannelData(1); // Right channel
+
+      console.log(
+        "[v0] Left channel sample range:",
+        Math.min(...leftChannelData),
+        "to",
+        Math.max(...leftChannelData)
+      );
+      console.log(
+        "[v0] Right channel sample range:",
+        Math.min(...rightChannelData),
+        "to",
+        Math.max(...rightChannelData)
+      );
+
+      // Copy the data to new buffers (each becomes a mono file)
+      leftBuffer.copyToChannel(leftChannelData, 0);
+      rightBuffer.copyToChannel(rightChannelData, 0);
+
+      // Convert buffers to WAV blobs
+      const leftBlob = this.audioBufferToWav(leftBuffer);
+      const rightBlob = this.audioBufferToWav(rightBuffer);
+
+      console.log(
+        "[v0] Channel separation complete - Left blob size:",
+        leftBlob.size,
+        "Right blob size:",
+        rightBlob.size
+      );
+
+      return {
+        leftChannel: leftBlob,
+        rightChannel: rightBlob,
+      };
+    } catch (error) {
+      console.error('[v0] Error in separateChannels:', error);
+      throw error;
     }
-
-    // Get the sample rate and length
-    const sampleRate = audioBuffer.sampleRate;
-    const length = audioBuffer.length;
-
-    // Create new audio buffers for left and right channels (mono output)
-    const leftBuffer = this.audioContext.createBuffer(1, length, sampleRate);
-    const rightBuffer = this.audioContext.createBuffer(1, length, sampleRate);
-
-    // Get the channel data
-    const leftChannelData = audioBuffer.getChannelData(0); // Left channel
-    const rightChannelData = audioBuffer.getChannelData(1); // Right channel
-
-    console.log(
-      "[v0] Left channel sample range:",
-      Math.min(...leftChannelData),
-      "to",
-      Math.max(...leftChannelData)
-    );
-    console.log(
-      "[v0] Right channel sample range:",
-      Math.min(...rightChannelData),
-      "to",
-      Math.max(...rightChannelData)
-    );
-
-    // Copy the data to new buffers (each becomes a mono file)
-    leftBuffer.copyToChannel(leftChannelData, 0);
-    rightBuffer.copyToChannel(rightChannelData, 0);
-
-    // Convert buffers to WAV blobs
-    const leftBlob = this.audioBufferToWav(leftBuffer);
-    const rightBlob = this.audioBufferToWav(rightBuffer);
-
-    console.log(
-      "[v0] Channel separation complete - Left blob size:",
-      leftBlob.size,
-      "Right blob size:",
-      rightBlob.size
-    );
-
-    return {
-      leftChannel: leftBlob,
-      rightChannel: rightBlob,
-    };
   }
 
   private audioBufferToWav(buffer: AudioBuffer): Blob {
