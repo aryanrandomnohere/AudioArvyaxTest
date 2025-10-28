@@ -1,191 +1,181 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, Loader2, AlertCircle, FileAudio, Info, Headphones } from "lucide-react"
-import type { AudioProcessor } from "@/lib/audio-processor"
-import { DownloadManager } from "@/lib/download-manager"
-import { AudioPreview } from "@/components/audio-preview"
-import { DragDropZone } from "@/components/drag-drop-zone"
-import { Footer } from "@/components/footer"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { IndividualEffects } from "@/components/individual-effects"
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Download,
+  Loader2,
+  AlertCircle,
+  FileAudio,
+  Info,
+  Headphones,
+} from "lucide-react";
+import { ClientAudioProcessor } from "@/lib/client-audio-processor";
+import { DownloadManager } from "@/lib/download-manager";
+import { AudioPreview } from "@/components/audio-preview";
+import { DragDropZone } from "@/components/drag-drop-zone";
+import { Footer } from "@/components/footer";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IndividualEffects } from "@/components/individual-effects";
 
 export default function AudioSeparator() {
-  const [file, setFile] = useState<File | null>(null)
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [processedFiles, setProcessedFiles] = useState<{
-    left: Blob | null
-    right: Blob | null
-  }>({ left: null, right: null })
+    left: Blob | null;
+    right: Blob | null;
+  }>({ left: null, right: null });
 
-  const audioProcessorRef = useRef<AudioProcessor | null>(null)
-  const downloadManagerRef = useRef<DownloadManager>(DownloadManager.getInstance())
+  const audioProcessorRef = useRef<ClientAudioProcessor | null>(null);
+  const downloadManagerRef = useRef<DownloadManager>(
+    DownloadManager.getInstance()
+  );
 
   useEffect(() => {
+    // Initialize the audio processor
+    if (!audioProcessorRef.current) {
+      audioProcessorRef.current = new ClientAudioProcessor();
+    }
     return () => {
       // Cleanup on unmount
-      if (audioProcessorRef.current) {
-        audioProcessorRef.current.dispose()
-      }
-      downloadManagerRef.current.cleanup()
-    }
-  }, [])
+      downloadManagerRef.current.cleanup();
+    };
+  }, []);
 
   const handleFileSelect = (selectedFile: File) => {
-    setFile(selectedFile)
-    setProcessedFiles({ left: null, right: null })
-    setError(null)
+    setFile(selectedFile);
+    setProcessedFiles({ left: null, right: null });
+    setError(null);
 
     // Clean up previous download URLs
-    downloadManagerRef.current.revokeDownloadUrl("left")
-    downloadManagerRef.current.revokeDownloadUrl("right")
-  }
+    downloadManagerRef.current.revokeDownloadUrl("left");
+    downloadManagerRef.current.revokeDownloadUrl("right");
+  };
 
   const processAudio = async () => {
-    if (!file) return
+    if (!file) return;
 
-    setProcessing(true)
-    setError(null)
+    setProcessing(true);
+    setError(null);
 
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      let audioBuffer: ArrayBuffer
-
-      if (file.type === "audio/mpeg" || file.type === "audio/mp3" || file.name.toLowerCase().endsWith(".mp3")) {
-        audioBuffer = await convertMp3ToWav(file)
-      } else {
-        audioBuffer = await file.arrayBuffer()
+      if (!audioProcessorRef.current) {
+        audioProcessorRef.current = new ClientAudioProcessor();
       }
 
-      const decodedBuffer = await audioContext.decodeAudioData(audioBuffer.slice(0))
-
-      const processedWav = audioBufferToWav(decodedBuffer)
-      const processedFile = new File([processedWav], file.name.replace(/\.mp3$/i, ".wav"), {
-        type: "audio/wav",
-      })
-
-      const formData = new FormData()
-      formData.append("audio", processedFile)
-
-      const response = await fetch("/api/process-audio", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to process audio")
-      }
-
-      const result = await response.json()
-
-      const leftResponse = await fetch(result.leftChannel)
-      const rightResponse = await fetch(result.rightChannel)
-
-      const leftBlob = await leftResponse.blob()
-      const rightBlob = await rightResponse.blob()
+      const { leftChannel, rightChannel } =
+        await audioProcessorRef.current.separateChannels(file);
 
       setProcessedFiles({
-        left: leftBlob,
-        right: rightBlob,
-      })
-
-      await audioContext.close()
+        left: leftChannel,
+        right: rightChannel,
+      });
     } catch (error) {
-      console.error("Error processing audio:", error)
-      setError(error instanceof Error ? error.message : "Failed to process audio file")
+      console.error("Error processing audio:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to process audio file"
+      );
     } finally {
-      setProcessing(false)
+      setProcessing(false);
     }
-  }
+  };
 
   const convertMp3ToWav = async (file: File): Promise<ArrayBuffer> => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
 
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-      const wavBuffer = audioBufferToWav(audioBuffer)
-      return wavBuffer
+      const wavBuffer = audioBufferToWav(audioBuffer);
+      return wavBuffer;
     } finally {
-      await audioContext.close()
+      await audioContext.close();
     }
-  }
+  };
 
   const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
-    const length = buffer.length
-    const numberOfChannels = buffer.numberOfChannels
-    const sampleRate = buffer.sampleRate
-    const bytesPerSample = 2 // 16-bit
-    const blockAlign = numberOfChannels * bytesPerSample
-    const byteRate = sampleRate * blockAlign
-    const dataSize = length * blockAlign
-    const bufferSize = 44 + dataSize
+    const length = buffer.length;
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2; // 16-bit
+    const blockAlign = numberOfChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * blockAlign;
+    const bufferSize = 44 + dataSize;
 
-    const arrayBuffer = new ArrayBuffer(bufferSize)
-    const view = new DataView(arrayBuffer)
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
 
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i))
+        view.setUint8(offset + i, string.charCodeAt(i));
       }
-    }
+    };
 
-    writeString(0, "RIFF")
-    view.setUint32(4, bufferSize - 8, true)
-    writeString(8, "WAVE")
-    writeString(12, "fmt ")
-    view.setUint32(16, 16, true) // PCM format
-    view.setUint16(20, 1, true) // PCM
-    view.setUint16(22, numberOfChannels, true)
-    view.setUint32(24, sampleRate, true)
-    view.setUint32(28, byteRate, true)
-    view.setUint16(32, blockAlign, true)
-    view.setUint16(34, 16, true) // 16-bit
-    writeString(36, "data")
-    view.setUint32(40, dataSize, true)
+    writeString(0, "RIFF");
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true); // PCM format
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // 16-bit
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
 
-    let offset = 44
+    let offset = 44;
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]))
-        view.setInt16(offset, sample * 0x7fff, true)
-        offset += 2
+        const sample = Math.max(
+          -1,
+          Math.min(1, buffer.getChannelData(channel)[i])
+        );
+        view.setInt16(offset, sample * 0x7fff, true);
+        offset += 2;
       }
     }
 
-    return arrayBuffer
-  }
+    return arrayBuffer;
+  };
 
   const downloadFile = (blob: Blob, filename: string) => {
-    downloadManagerRef.current.downloadFile(blob, filename)
-  }
+    downloadManagerRef.current.downloadFile(blob, filename);
+  };
 
   const downloadBoth = () => {
     if (processedFiles.left && processedFiles.right) {
-      downloadFile(processedFiles.left, getFileName("left"))
+      downloadFile(processedFiles.left, getFileName("left"));
       setTimeout(() => {
-        downloadFile(processedFiles.right!, getFileName("right"))
-      }, 100)
+        downloadFile(processedFiles.right!, getFileName("right"));
+      }, 100);
     }
-  }
+  };
 
   const getFileName = (suffix: string) => {
-    if (!file) return `audio_${suffix}.wav`
-    const baseName = file.name.split(".")[0]
-    return `${baseName}_${suffix}.wav`
-  }
+    if (!file) return `audio_${suffix}.wav`;
+    const baseName = file.name.split(".")[0];
+    return `${baseName}_${suffix}.wav`;
+  };
 
   const resetApp = () => {
-    setFile(null)
-    setProcessedFiles({ left: null, right: null })
-    setError(null)
-    downloadManagerRef.current.cleanup()
-  }
+    setFile(null);
+    setProcessedFiles({ left: null, right: null });
+    setError(null);
+    downloadManagerRef.current.cleanup();
+  };
 
   return (
     <div className="min-h-screen bg-background gradient-bg flex flex-col">
@@ -195,10 +185,13 @@ export default function AudioSeparator() {
           <div className="text-center space-y-3">
             <div className="flex items-center justify-center gap-3 mb-2">
               <Headphones className="w-8 h-8 text-primary" />
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Audio Processing Studio</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                Audio Processing Studio
+              </h1>
             </div>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Separate stereo channels and apply professional audio effects - all in your browser
+              Separate stereo channels and apply professional audio effects -
+              all in your browser
             </p>
           </div>
 
@@ -207,8 +200,8 @@ export default function AudioSeparator() {
             <Alert className="max-w-2xl mx-auto">
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Privacy-focused:</strong> All processing happens locally in your browser. No audio files are
-                uploaded to any server.
+                <strong>Privacy-focused:</strong> All processing happens locally
+                in your browser. No audio files are uploaded to any server.
               </AlertDescription>
             </Alert>
 
@@ -228,18 +221,25 @@ export default function AudioSeparator() {
                   Upload Audio File
                 </CardTitle>
                 <CardDescription>
-                  Select or drag and drop an audio file (MP3, WAV, M4A, FLAC) to get started
+                  Select or drag and drop an audio file (MP3, WAV, M4A, FLAC) to
+                  get started
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <DragDropZone onFileSelect={handleFileSelect} currentFile={file} disabled={processing} />
+                <DragDropZone
+                  onFileSelect={handleFileSelect}
+                  currentFile={file}
+                  disabled={processing}
+                />
 
                 {file && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <FileAudio className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="text-sm font-medium truncate">{file.name}</span>
+                        <span className="text-sm font-medium truncate">
+                          {file.name}
+                        </span>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
                         {(file.size / (1024 * 1024)).toFixed(2)} MB
@@ -268,10 +268,16 @@ export default function AudioSeparator() {
                     <Headphones className="w-5 h-5" />
                     Stereo Channel Separator
                   </CardTitle>
-                  <CardDescription>Separate your audio into left and right channels</CardDescription>
+                  <CardDescription>
+                    Separate your audio into left and right channels
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button onClick={processAudio} disabled={processing} className="w-full">
+                  <Button
+                    onClick={processAudio}
+                    disabled={processing}
+                    className="w-full"
+                  >
                     {processing ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -288,7 +294,11 @@ export default function AudioSeparator() {
                       <div className="flex items-center justify-between">
                         <h3 className="font-medium">Separated Channels</h3>
                         {processedFiles.left && processedFiles.right && (
-                          <Button onClick={downloadBoth} variant="outline" size="sm">
+                          <Button
+                            onClick={downloadBoth}
+                            variant="outline"
+                            size="sm"
+                          >
                             <Download className="w-4 h-4 mr-2" />
                             Download Both
                           </Button>
@@ -309,7 +319,12 @@ export default function AudioSeparator() {
                             />
                             <Button
                               variant="outline"
-                              onClick={() => downloadFile(processedFiles.left!, getFileName("left"))}
+                              onClick={() =>
+                                downloadFile(
+                                  processedFiles.left!,
+                                  getFileName("left")
+                                )
+                              }
                               className="w-full"
                               size="sm"
                             >
@@ -332,7 +347,12 @@ export default function AudioSeparator() {
                             />
                             <Button
                               variant="outline"
-                              onClick={() => downloadFile(processedFiles.right!, getFileName("right"))}
+                              onClick={() =>
+                                downloadFile(
+                                  processedFiles.right!,
+                                  getFileName("right")
+                                )
+                              }
                               className="w-full"
                               size="sm"
                             >
@@ -353,5 +373,5 @@ export default function AudioSeparator() {
 
       <Footer />
     </div>
-  )
+  );
 }
